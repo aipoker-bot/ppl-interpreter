@@ -1,0 +1,27 @@
+// teaching_loose — a small PPL profile written for ppl-interpreter (not a commercial Shanky profile).
+// Loose-passive: calls a lot, rarely raises. Useful as a punching bag and as a parser example.
+custom
+preflop
+When hand = AA or hand = KK raise 3 force
+When pairinhand and amounttocall <= 6 call force
+When (hand = A suited or hand = K suited) and amounttocall <= 4 call force
+When amounttocall <= 3 call force
+When inbigblind and amounttocall = 0 check force
+When others fold force
+flop
+When havetwopair or haveset raise 100% force
+When havepair and amounttocall <= 50% potsize call force
+When haveflushdraw or havestraightdraw and amounttocall <= 40% potsize call force
+When amounttocall = 0 check force
+When others fold force
+turn
+When havetwopair or haveset raisemax force
+When havepair and amounttocall <= 40% potsize call force
+When haveflushdraw and amounttocall <= 25% potsize call force
+When amounttocall = 0 check force
+When others fold force
+river
+When havetwopair or haveset or havestraight or haveflush raisemax force
+When havepair and amounttocall <= 30% potsize call force
+When amounttocall = 0 check force
+When others fold force

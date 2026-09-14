@@ -1,0 +1,35 @@
+// teaching_tight — a small PPL profile written for ppl-interpreter (not a commercial Shanky profile).
+// Tight-aggressive 6-max cash. Every rule uses only symbols the interpreter implements.
+custom
+preflop
+When hand = AA or hand = KK or hand = QQ raise 4 force
+When hand = AK suited raise 3 force
+When hand = AK and raises = 0 raise 3 force
+When hand = JJ or hand = TT and raises = 0 raise 3 force
+When hand = JJ or hand = TT and raises = 1 and amounttocall <= 4 call force
+When (position = last or inbutton) and raises = 0 and hand = AQ raise 3 force
+When (position = last or inbutton) and raises = 0 and pairinhand raise 3 force
+When inbigblind and raises = 0 and amounttocall = 0 check force
+When others fold force
+flop
+When haveset or havetoptwopair raisemax force
+When havetoppair and havebestkicker and bets = 0 bet 66% force
+When havetoppair and havebestkicker and amounttocall <= 30% potsize call force
+When haveoverpair and bets = 0 bet 66% force
+When haveoverpair and amounttocall <= 50% potsize call force
+When havenutflushdraw and amounttocall <= 30% potsize call force
+When bets = 0 and botraisedbeforeflop and opponents = 1 bet 50% force
+When others fold force
+turn
+When haveset or havetoptwopair or havestraight or haveflush raisemax force
+When havetoppair and havebestkicker and bets = 0 bet 66% force
+When haveoverpair and bets = 0 bet 66% force
+When havetoppair and amounttocall <= 30% potsize call force
+When havenutflushdraw and amounttocall <= 25% potsize call force
+When others fold force
+river
+When havenuts raisemax force
+When havestraight or haveflush or havefullhouse bet 75% force
+When havetoppair and havebestkicker and amounttocall <= 40% potsize call force
+When haveoverpair and amounttocall <= 40% potsize call force
+When others fold force

@@ -1,0 +1,23 @@
+[project]
+name = "ppl-interpreter"
+version = "0.1.0"
+description = "Interpreter for Shanky-style PPL poker bot profiles: parse, evaluate against any engine, trace the rule that fired."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = ["phevaluator>=0.5"]
+keywords = ["poker", "ppl", "shanky", "openholdem", "bot", "rules-engine"]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[project.urls]
+Homepage = "https://aipoker.bot/bots"
+Methodology = "https://aipoker.bot/methodology"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["ppl_interpreter*"]

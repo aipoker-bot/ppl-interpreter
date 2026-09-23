@@ -87,3 +87,36 @@ def test_unknown_symbol_counts_not_crashes():
     st = SimpleState(holes=[["Ah", "Kd"], ["7c", "6d"]], board=["9c", "5h", "2s"], street="flop", pot=12)
     assert decide(b, st, 0, la(call=8))[0] == "fold"
     assert "havemagicbeans" in b.unknown_symbols
+
+
+def _flop(bets):
+    return SimpleState(holes=[["Ah", "Kd"], ["Qs", "Qc"]], street="flop", board=["Ac", "7d", "2s"],
+                       pot=12, bets=bets, positions=["sb", "bb"])
+
+
+def _bot(flop_rule: str, **kw):
+    from ppl_interpreter import PPLBot
+    return PPLBot(parse_profile(f"custom\npreflop\nflop\n{flop_rule}\n", "t"), "t", **kw)
+
+
+def test_fold_checks_when_free():
+    # PPL guide 3.2.3: "Fold - will check if available else fold"
+    assert decide(_bot("When others fold force"), _flop([0, 0]), 0, la(rmin=2, rmax=100)) == ("cc", None)
+
+
+def test_bet_calls_when_a_bet_is_in():
+    # "Bet - will bet if available otherwise will Call"; raise still raises
+    facing = la(call=6, rmin=12, rmax=100)
+    assert decide(_bot("When others betpot force"), _flop([0, 6]), 0, facing) == ("cc", None)
+    assert decide(_bot("When others raisepot force"), _flop([0, 6]), 0, facing)[0] == "raise"
+    assert decide(_bot("When others betpot force"), _flop([0, 0]), 0, la(rmin=2, rmax=100))[0] == "raise"
+
+
+def test_no_rule_uses_fallback_when_given():
+    st, legal = _flop([0, 6]), la(call=6, rmin=12, rmax=100)
+    plain = _bot("")
+    assert decide(plain, st, 0, legal) == ("fold", None)
+    assert plain.last_src == {"src": "default_fold"}
+    fb = _bot("", fallback=lambda state, seat, la_: ("cc", None))
+    assert decide(fb, st, 0, legal) == ("cc", None)
+    assert fb.last_src == {"src": "fallback"}

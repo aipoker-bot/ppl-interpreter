@@ -15,7 +15,7 @@ When bets = 0 bet 66% force
     assert pre[0].action == ("raise", 3, "bb")
     assert pre[1].action == ("fold", None, None)
     assert prof.sections["flop"][0].action == ("raise", None, "max")
-    assert prof.sections["flop"][1].action[1:] == (66, "pct")   # bet/raise are one family in Shanky: BY over the current level
+    assert prof.sections["flop"][1].action == ("bet", 66, "pct")   # BY over the current level; bet calls when a bet is in
 
 
 def test_bare_when_is_a_guard():

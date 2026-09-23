@@ -171,20 +171,23 @@ def parse_action(text: str) -> tuple | None:
         return ("fold", None, None)
     if verb in ("call", "play"):
         return ("call", None, None)
+    # PPL Guide 3.2.3: the Bet family calls when a bet is already in (and
+    # always preflop) — keep it apart from Raise, which raises regardless
+    fam = "bet" if verb.startswith("bet") else "raise"
     if verb in ("raisemax", "betmax"):
-        return ("raise", None, "max")
+        return (fam, None, "max")
     if verb == "raisemin":
-        return ("raise", None, "min")
+        return (fam, None, "min")
     if verb in ("raisepot", "betpot"):
-        return ("raise", 100, "pct")
+        return (fam, 100, "pct")
     if verb in ("raisehalfpot", "bethalfpot"):
-        return ("raise", 50, "pct")
+        return (fam, 50, "pct")
     # raise / bet with optional amount
     if amt is None:
-        return ("raise", None, "min")
+        return (fam, None, "min")
     if amt.endswith("%"):
-        return ("raise", int(amt[:-1]), "pct")
-    return ("raise", int(amt), "bb")
+        return (fam, int(amt[:-1]), "pct")
+    return (fam, int(amt), "bb")
 
 
 def _balanced(text: str) -> bool:

@@ -1,7 +1,9 @@
 """PPLBot: runs a parsed Shanky profile as a table opponent, with rule traces.
 
 Evaluation: top-down within the street section; user-var rules set variables,
-the first matching action rule fires. No match → check/fold (Shanky default).
+the first matching action rule fires. No match → the `fallback` callable if
+one is given, else check/fold. (Real Shanky falls through to its own default
+profile, which ships encrypted; plug in whatever default logic you have.)
 Every decision records WHICH rule fired — that trace becomes the bot's
 "table talk" (the educational payoff of running real profiles).
 """
@@ -11,6 +13,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from pathlib import Path
+from typing import Callable
 
 from .parser import Profile, Rule, parse_profile
 from .symbols import RANK_ORDER, PPLContext, UnknownSymbol, rv
@@ -89,18 +92,26 @@ def _match_board(node: tuple, ctx: PPLContext) -> bool:
 
 
 class PPLBot:
-    def __init__(self, profile: Profile, display_name: str):
+    def __init__(self, profile: Profile, display_name: str,
+                 fallback: Callable | None = None):
+        """`fallback(hand, seat, la) -> (kind, amount)` plays spots no rule
+        covers; without it the bot checks if free, otherwise folds."""
         self.profile = profile
         self.name = display_name
+        self.fallback = fallback
         self.thoughts: list[dict] = []
         self.user_vars: dict = {}
         self.unknown_symbols: Counter = Counter()
+        # where the last decision came from: {"src": "rule", "line": N},
+        # {"src": "fallback"} or {"src": "default_fold"}
+        self.last_src: dict = {}
 
     def reset_hand(self) -> None:
         self.thoughts = []
         self.user_vars = {}
 
     def decide_ppl(self, hand: Hand, seat: int, la, table: dict):
+        self.last_src = {}
         table = {**table, "user_vars": self.user_vars}
         ctx = PPLContext(hand, seat, la, table)
         street = hand.street
@@ -120,9 +131,18 @@ class PPLBot:
                 continue
             kind, amount = self._to_engine_action(rule.action, ctx)
             self._trace(street, kind, rule)
+            self.last_src = {"src": "rule", "line": rule.line_no}
             return kind, amount
-        # Shanky default: check if free, otherwise fold
+        if self.fallback is not None:
+            kind, amount = self.fallback(hand, seat, la)
+            self.last_src = {"src": "fallback"}
+            self.thoughts.append({"street": street,
+                                  "action": {"cc": "call/check", "fold": "fold",
+                                             "raise": "raise"}[kind],
+                                  "reason": "No profile rule matched — fallback."})
+            return kind, amount
         kind = "cc" if la.check else "fold"
+        self.last_src = {"src": "default_fold"}
         self.thoughts.append({"street": street, "action": "check" if la.check else "fold",
                               "reason": "No profile rule matched — default check/fold."})
         return kind, None
@@ -130,9 +150,13 @@ class PPLBot:
     def _to_engine_action(self, action: tuple, ctx: PPLContext):
         verb, amt, unit = action
         la = ctx.la
+        # PPL Guide 3.2.3: "Fold - will check if available else fold",
+        # "Bet - will bet if available otherwise will Call" (never preflop)
         if verb == "fold":
-            return (("fold", None) if la.fold else ("cc", None))
+            return (("cc", None) if la.check or not la.fold else ("fold", None))
         if verb in ("check", "call"):
+            return ("cc", None)
+        if verb == "bet" and (la.call_amount > 0 or ctx.h.street == "preflop"):
             return ("cc", None)
         # raise family; amounts are BY over the current level
         if la.raise_min is None:
@@ -160,7 +184,8 @@ class PPLBot:
         })
 
 
-def load_profile(path: str | Path, display_name: str | None = None) -> tuple[PPLBot, dict]:
+def load_profile(path: str | Path, display_name: str | None = None,
+                 fallback: Callable | None = None) -> tuple[PPLBot, dict]:
     """Load + coverage report: % of rules whose symbols are all implemented."""
     from .symbols import SYMBOLS
     text = Path(path).read_text(encoding="utf-8", errors="ignore")
@@ -203,4 +228,4 @@ def load_profile(path: str | Path, display_name: str | None = None) -> tuple[PPL
         "parse_errors": len(prof.parse_errors),
         "missing_symbols": missing.most_common(15),
     }
-    return PPLBot(prof, display_name or prof.name), report
+    return PPLBot(prof, display_name or prof.name, fallback), report

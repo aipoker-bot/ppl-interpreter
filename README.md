@@ -35,7 +35,7 @@ bot.thoughts[-1]["reason"]
 
 Actions come back as `("fold", None)`, `("cc", None)` (check or call, whichever is legal) or `("raise", total_to)`. Sizes are BY an amount over the current level, in big blinds (`raise 3`), percent of pot (`bet 66%`), `raisemin`, `raisemax`. Action semantics follow the PPL guide: `fold` checks when checking is free, and the `bet` family calls when a bet is already in (bet is never available preflop), while `raise` raises.
 
-When no rule matches, the bot checks if it can and folds otherwise. The original bot fell through to Shanky's default profile at that point, which ships encrypted, so profiles written as tweaks on top of it leave many spots uncovered. Pass `fallback=fn` to `load_profile` or `PPLBot`, with `fn(state, seat, legal) -> action` to play those spots with your own logic; `bot.last_src` says whether the last action came from a rule (with its line), the fallback, or the default.
+When no rule matches, the bot checks if it can and folds otherwise. The original bot fell through to Shanky's default profile at that point, which ships encrypted, so profiles written as tweaks on top of it leave many spots uncovered. Pass `fallback=fn` to `load_profile` or `PPLBot`, with `fn(state, seat, legal) -> action` to play those spots with your own logic; `bot.last_src` says whether the last action came from a rule (with its line), the fallback, or the default. Option-menu settings saved above `custom` (`DefaultBetSizeFlop = 80` and so on) are parsed into `profile.options` for your fallback to use; the interpreter itself doesn't execute them, since most are menu item numbers for Shanky's closed default engine.
 
 ## What is implemented
 

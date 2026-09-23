@@ -30,6 +30,9 @@ class Profile:
     sections: dict = field(default_factory=dict)   # street -> [Rule]
     symbols_used: set = field(default_factory=set)
     parse_errors: list = field(default_factory=list)
+    # option-menu settings saved above `custom` (`Key = Value`); they tune
+    # Shanky's closed default engine and are not executed here
+    options: dict = field(default_factory=dict)
 
 
 class ParseError(Exception):
@@ -217,6 +220,7 @@ def parse_profile(text: str, name: str = "profile") -> Profile:
     street = None
     guard_text: str | None = None
     pending: str | None = None
+    seen_custom = False
 
     def close(pending_text: str, idx: int) -> None:
         rule = _finish_rule(pending_text, idx, prof, guard_text)
@@ -229,6 +233,11 @@ def parse_profile(text: str, name: str = "profile") -> Profile:
             continue
         low = line.lower()
         if low == "custom":
+            seen_custom = True
+            continue
+        if not seen_custom and street is None and "=" in line:
+            k, _, v = line.lstrip("\ufeff").partition("=")
+            prof.options[k.strip()] = v.strip()
             continue
         if low in STREETS:
             street = low

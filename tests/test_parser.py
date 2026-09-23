@@ -42,3 +42,9 @@ def test_comments_and_blank_lines_ignored():
 def test_unknown_symbol_survives_parsing():
     prof = parse_profile("custom\nflop\nWhen havemagicbeans raisemax force\n", "u")
     assert prof.sections["flop"][0].cond == ("sym", "havemagicbeans")
+
+
+def test_option_block_is_parsed_not_executed():
+    prof = parse_profile("\ufeffDefaultBetSizeFlop = 80\nNoLimp = 15\ncustom\npreflop\nWhen others fold force\n", "t")
+    assert prof.options == {"DefaultBetSizeFlop": "80", "NoLimp": "15"}
+    assert len(prof.sections["preflop"]) == 1

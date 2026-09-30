@@ -1,6 +1,6 @@
 [project]
 name = "ppl-interpreter"
-version = "0.1.0"
+version = "0.1.1"
 description = "Interpreter for Shanky-style PPL poker bot profiles: parse, evaluate against any engine, trace the rule that fired."
 readme = "README.md"
 license = {text = "MIT"}

@@ -203,8 +203,8 @@ SYMBOLS = {
     "tripsonboard": lambda c: any(c.bvals.count(v) >= 3 for v in set(c.bvals)),
     "quadsonboard": lambda c: any(c.bvals.count(v) >= 4 for v in set(c.bvals)),
     "straightonboard": lambda c: len(c.board) >= 5 and _has_straight(set(c.bvals)),
-    "threecardstraightonboard": lambda c: any(
-        all(v + i in set(c.bvals) for i in range(3)) for v in range(11)),
+    "threecardstraightonboard": lambda c: any(          # ace also plays low (A-2-3)
+        all(v + i in _low_ace(c.bvals) for i in range(3)) for v in range(-1, 11)),
     "suitsonboard": lambda c: len({x[1] for x in c.board}) if c.board else 4,
     "suitsonflop": lambda c: len({x[1] for x in c.board[:3]}) if len(c.board) >= 3 else 4,
     "suitsinhand": lambda c: len({x[1] for x in c.hole}),
@@ -224,26 +224,19 @@ SYMBOLS = {
     "morethanonestraightpossibleonflop": lambda c: sum(
         1 for p in combinations(range(13), 2)
         if _has_straight({rv(x) for x in c.board[:3]} | set(p))) > 1,
-    "morethanonestraightpossibleonturn": lambda c: sum(
-        1 for p in combinations(range(13), 2)
-        if _has_straight({rv(x) for x in c.board[:4]} | set(p))) > 1,
-    "onlyonestraightpossible": lambda c: sum(
-        1 for p in combinations(range(13), 2)
-        if _has_straight(set(c.bvals) | set(p))) == 1,
+    "morethanonestraightpossibleonturn": lambda c: len(c.board) >= 4
+        and _n_straights([rv(x) for x in c.board[:4]]) > 1,
+    "onlyonestraightpossible": lambda c: _n_straights(c.bvals) == 1,
     "onecardstraightpossibleonturn": lambda c: any(
         _has_straight({rv(x) for x in c.board[:4]} | {v}) for v in range(13)),
-    "straightflushpossible": lambda c: any(
-        sum(1 for x in c.board if x[1] == s) >= 3 for s in "shdc") and
-        SYMBOLS["straightpossible"](c),
-    "straightflushpossiblebyothers": lambda c: SYMBOLS["straightflushpossible"](c),
+    "straightflushpossible": lambda c: _sf_possible(c.board, ()),
+    "straightflushpossiblebyothers": lambda c: _sf_possible(c.board, c.hole),
     "uncoordinatedflop": lambda c: len({x[1] for x in c.board[:3]}) == 3
         and not SYMBOLS["threecardstraightonboard"](c) and c.board_pair_count() == 0,
     "acepresentonflop": lambda c: any(x[0] == "A" for x in c.board[:3]),
     "kingpresentonflop": lambda c: any(x[0] == "K" for x in c.board[:3]),
     "queenpresentonflop": lambda c: any(x[0] == "Q" for x in c.board[:3]),
-    "overcardsonboard": lambda c: (
-        sum(1 for v in set(c.bvals) if c.pocket_pair() is not None and v > c.pocket_pair())
-        if c.pocket_pair() is not None else 0),
+    "overcardsonboard": lambda c: sum(1 for v in c.bvals if v > c.hvals[0]),
 
     # hole/made hands
     "pairinhand": lambda c: c.pocket_pair() is not None,
@@ -257,8 +250,7 @@ SYMBOLS = {
         and c.hole_pairs_board()[0] == sorted(set(c.bvals), reverse=True)[2],
     "have4thtoppair": lambda c: len(set(c.bvals)) >= 4 and bool(c.hole_pairs_board())
         and c.hole_pairs_board()[0] == sorted(set(c.bvals), reverse=True)[3],
-    "havebottompair": lambda c: bool(c.bvals) and bool(c.hole_pairs_board())
-        and c.hole_pairs_board()[0] == min(c.bvals),
+    "havebottompair": lambda c: bool(c.bvals) and min(c.bvals) in c.hvals,
     "haveoverpair": lambda c: c.pocket_pair() is not None and bool(c.bvals)
         and c.pocket_pair() > c.bvals[0],
     "have2ndoverpair": lambda c: _nth_overpair(c, 2),
@@ -267,18 +259,21 @@ SYMBOLS = {
     "have5thoverpair": lambda c: _nth_overpair(c, 5),
     "haveunderpair": lambda c: c.pocket_pair() is not None and bool(c.bvals)
         and c.pocket_pair() < min(c.bvals),
-    "havetwopair": lambda c: c.made == "two_pair",
-    "havetoptwopair": lambda c: c.made == "two_pair" and len(set(c.bvals)) >= 2
+    "havetwopair": lambda c: c.pocket_pair() is None and all(v in c.bvals for v in c.hvals)
+        and not any(c.bvals.count(v) >= 2 and v > c.hvals[1] for v in set(c.bvals)),
+    "havetoptwopair": lambda c: c.pocket_pair() is None and len(set(c.bvals)) >= 2
         and set(sorted(set(c.bvals), reverse=True)[:2]) <= set(c.hvals),
-    "havetrips": lambda c: c.made == "trips" and c.pocket_pair() is None,
+    "havetrips": lambda c: c.pocket_pair() is None
+        and any(c.bvals.count(v) == 2 for v in c.hvals),
     "haveset": lambda c: c.made in ("trips", "full_house", "quads")
         and c.pocket_pair() is not None and c.pocket_pair() in c.bvals,
     "havetopset": lambda c: SYMBOLS["haveset"](c) and bool(c.bvals)
         and c.pocket_pair() == c.bvals[0],
-    "havestraight": lambda c: c.made in ("straight", "straight_flush"),
+    "havestraight": lambda c: c.made in ("straight", "straight_flush")
+        or (len(c.board) >= 3 and _has_straight(set(c.hvals) | set(c.bvals))),
     "havenutstraight": lambda c: c.made == "straight" and _nut_straight_rank(c) == 1,
     "have2ndnutstraight": lambda c: c.made == "straight" and _nut_straight_rank(c) == 2,
-    "haveunderstraight": lambda c: c.made == "straight" and _nut_straight_rank(c) >= 3,
+    "haveunderstraight": lambda c: _under_straight(c),
     "haveflush": lambda c: c.made in ("flush", "straight_flush"),
     "havenutflush": lambda c: c.made == "flush" and _nut_flush_rank(c) == 1,
     "have2ndnutflush": lambda c: c.made == "flush" and _nut_flush_rank(c) == 2,
@@ -288,45 +283,50 @@ SYMBOLS = {
     "nutfullhouseorfourofakind": lambda c: c.made in ("full_house", "quads")
         and (c.pocket_pair() is None or c.pocket_pair() == (c.bvals[0] if c.bvals else -1)
              or c.made == "quads"),
-    "havenuts": lambda c: SYMBOLS["havenutflush"](c)
-        or (SYMBOLS["havenutstraight"](c) and not SYMBOLS["flushpossible"](c)
-            and c.board_pair_count() == 0)
-        or c.made in ("straight_flush", "quads"),
-    "havenothing": lambda c: c.made == "high" and not SYMBOLS["haveflushdraw"](c)
-        and c.straight_draw_outs() == 0,
+    "havenuts": lambda c: _have_nuts(c),
+    "havenothing": lambda c: len(c.board) >= 3 and not (
+        SYMBOLS["havepair"](c) or SYMBOLS["havestraight"](c) or SYMBOLS["haveflush"](c)
+        or SYMBOLS["haveinsidestraightdraw"](c) or SYMBOLS["haveflushdraw"](c)
+        or SYMBOLS["havebackdoorflushdraw"](c) or SYMBOLS["overcards"](c) == 2),
     "havebestkicker": lambda c: _kicker_rank(c) == 1,
     "have2ndbestkicker": lambda c: _kicker_rank(c) == 2,
     "have3rdbestkicker": lambda c: _kicker_rank(c) == 3,
-    "havetopnonboardpairedpair": lambda c: SYMBOLS["havetoppair"](c)
-        and c.board_pair_count() == 0,
+    "havetopnonboardpairedpair": lambda c: any(c.bvals.count(v) == 1 for v in c.bvals)
+        and max(v for v in c.bvals if c.bvals.count(v) == 1) in c.hvals,
     "hadtoppaironflop": lambda c: len(c.board) >= 3 and bool(
         set(c.hvals) & {max(rv(x) for x in c.board[:3])}),
 
     # draws
-    "haveflushdraw": lambda c: c.flush_suit(4) is not None and c.made not in
-        ("flush", "straight_flush"),
-    "havebackdoorflushdraw": lambda c: c.flush_suit(3) is not None,
+    "haveflushdraw": lambda c: c.flush_suit(4) is not None,      # made flush counts
+    "havebackdoorflushdraw": lambda c: len(c.board) == 3 and c.flush_suit(3) is not None,
     "havenutflushdraw": lambda c: _nut_flushdraw_rank(c) == 1,
     "have2ndnutflushdraw": lambda c: _nut_flushdraw_rank(c) == 2,
     "have3rdnutflushdraw": lambda c: _nut_flushdraw_rank(c) == 3,
     "have4thnutflushdraw": lambda c: _nut_flushdraw_rank(c) == 4,
     "have5thnutflushdraw": lambda c: _nut_flushdraw_rank(c) == 5,
-    "havestraightdraw": lambda c: c.straight_draw_outs() >= 2,
-    "haveinsidestraightdraw": lambda c: c.straight_draw_outs() == 1,
-    "havenutstraightdraw": lambda c: c.straight_draw_outs() >= 2 and _draw_is_nut(c),
-    "haveinsidenutstraightdraw": lambda c: c.straight_draw_outs() == 1 and _draw_is_nut(c),
+    # Guide: "made straight or >= 7 outs" / ">= 4 outs"; nut variants count outs
+    # to the nut straight (NutStraightDraw drops flush-making outs if no flush yet).
+    "havestraightdraw": lambda c: _my_straight(c.hole, c.board) > 0
+        or _straight_outs(c) >= 7,
+    "haveinsidestraightdraw": lambda c: _my_straight(c.hole, c.board) > 0
+        or _straight_outs(c) >= 4,
+    "havenutstraightdraw": lambda c: _is_nut_straight(c.hole, c.board)
+        or _nut_straight_outs(c, discount_flush=True) >= 7,
+    "haveinsidenutstraightdraw": lambda c: _is_nut_straight(c.hole, c.board)
+        or _nut_straight_outs(c, discount_flush=False) >= 4,
 
     "paironflop": lambda c: len(c.board) >= 3 and len({rv(x) for x in c.board[:3]}) < 3,
     "paironturn": lambda c: len(c.board) >= 4 and len({rv(x) for x in c.board[:4]}) < 4,
     "hadoverpaironflop": lambda c: len(c.board) >= 3 and c.pocket_pair() is not None
         and c.pocket_pair() > max(rv(x) for x in c.board[:3]),
-    "havebackdoornutflushdraw": lambda c: (lambda suit: suit is not None
+    "havebackdoornutflushdraw": lambda c: len(c.board) == 3 and (lambda suit: suit is not None
         and any(x[1] == suit and rv(x) == max(
             (v for v in range(13) if v not in {rv(b) for b in c.board if b[1] == suit}),
             default=12) for x in c.hole))(c.flush_suit(3)),
-    "havebestkickerorbetter": lambda c: _kicker_rank(c) == 1
-        or c.made in ("two_pair", "trips", "straight", "flush", "full_house",
-                      "quads", "straight_flush"),
+    # "or better" = any better hand of the bot's own (a pair counts; board-only
+    # trips/two pair do not, board straight/flush/full house do, as in HaveX)
+    "havebestkickerorbetter": lambda c: _kicker_rank(c) == 1 or SYMBOLS["havepair"](c)
+        or c.made in ("straight", "flush", "full_house", "quads", "straight_flush"),
     "lastcallerposition": lambda c: _lastpos_scale(c, c.t.get("last_caller_seat")),
 
     "bigblindsize": lambda c: 2,           # cash table: BB is 2 chips
@@ -396,8 +396,8 @@ def _nut_flush_rank(ctx: PPLContext) -> int:
 
 
 def _nut_flushdraw_rank(ctx: PPLContext) -> int:
-    suit = ctx.flush_suit(4)
-    if suit is None or ctx.made in ("flush", "straight_flush"):
+    suit = ctx.flush_suit(4)                  # made flush counts ("made nut flush or ...")
+    if suit is None:
         return 0
     mine = max((rv(x) for x in ctx.hole if x[1] == suit), default=-1)
     if mine < 0:
@@ -440,3 +440,94 @@ def _draw_is_nut(ctx: PPLContext) -> bool:
             if own >= best_any:
                 return True
     return False
+
+
+# -- helpers for the Shanky-guide fixes --------------------------------------
+
+_DECK = [r + s for r in RANK_ORDER for s in "shdc"]
+
+
+def _low_ace(vals) -> set[int]:
+    vals = set(vals)
+    return vals | ({-1} if RANK_ORDER.index("A") in vals else set())
+
+
+def _n_straights(bvals) -> int:
+    """Distinct straights the board allows with two hole cards (OpenPPL's window
+    rule: >= 3 board ranks in the window and the next rank up not on board).
+    Guide: AKQ -> 1 (JT), KQJ -> 2 (AT, T9)."""
+    s = _low_ace(bvals)
+    return sum(1 for lo in range(-1, 9)
+               if len(s & set(range(lo, lo + 5))) >= 3 and (lo + 5) not in s)
+
+
+def _sf_possible(board, excluded) -> bool:
+    """A straight flush can be made with the board (>= 3 suited board cards in a
+    5-rank window, ace also low); `excluded` cards (the bot's hole cards) cannot
+    be used by anyone else -> StraightFlushPossibleByOthers."""
+    for suit in "shdc":
+        have = _low_ace(rv(x) for x in board if x[1] == suit)
+        for lo in range(-1, 9):
+            win = set(range(lo, lo + 5))
+            if len(win & have) < 3:
+                continue
+            need = {12 if v == -1 else v for v in win - have}
+            if not any(RANK_ORDER[v] + suit in excluded for v in need):
+                return True
+    return False
+
+
+def _my_straight(hole, board) -> int:
+    """High card of our straight, 0 if we have none beyond the board's own."""
+    own = _best_straight_high({rv(x) for x in hole + board})
+    return own if own > _best_straight_high({rv(x) for x in board}) else 0
+
+
+def _is_nut_straight(hole, board) -> bool:
+    mine = _my_straight(hole, board)
+    bv = {rv(x) for x in board}
+    best = max(_best_straight_high(bv | set(p)) for p in combinations(range(13), 2))
+    return mine > 0 and mine >= best
+
+
+def _unseen(ctx):
+    return [x for x in _DECK if x not in ctx.hole and x not in ctx.board]
+
+
+def _straight_outs(ctx) -> int:
+    return sum(1 for x in _unseen(ctx) if _my_straight(ctx.hole, ctx.board + [x]))
+
+
+def _nut_straight_outs(ctx, discount_flush: bool) -> int:
+    fp = SYMBOLS["flushpossible"](ctx)
+    n = 0
+    for x in _unseen(ctx):
+        b2 = ctx.board + [x]
+        if not _is_nut_straight(ctx.hole, b2):
+            continue
+        if discount_flush and not fp and sum(1 for y in b2 if y[1] == x[1]) >= 3:
+            continue
+        n += 1
+    return n
+
+
+def _under_straight(ctx) -> bool:
+    """Guide: all hand cards used in the straight are lower than every board
+    card used in it."""
+    hi = _my_straight(ctx.hole, ctx.board)
+    if not hi:
+        return False
+    win = {12 if v == -1 else v for v in range(hi - 4, hi + 1)}
+    low = (lambda v: -1 if v == 12 and hi == 3 else v)       # wheel: ace is low
+    bv = {rv(x) for x in ctx.board}
+    used_h = {v for v in ctx.hvals if v in win} - bv
+    used_b = bv & win
+    return bool(used_h) and max(map(low, used_h)) < min(map(low, used_b))
+
+
+def _have_nuts(ctx) -> bool:
+    if len(ctx.board) < 3:
+        return False
+    me = ctx._pheval(ctx.hole + ctx.board)
+    return all(evaluate_cards(a, b, *ctx.board) >= me
+               for a, b in combinations(_unseen(ctx), 2))

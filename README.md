@@ -52,7 +52,7 @@ pip install -e ".[test]"
 pytest
 ```
 
-Parser tests plus decision tests on frozen spots (no engine, no network). If you have profiles of your own, `load_profile` on each is the quickest conformance check.
+Parser tests, decision tests on frozen spots, and symbol tests built from the worked examples in the PPL guide, each citing the guide line it checks (no engine, no network). If you have profiles of your own, `load_profile` on each is the quickest conformance check.
 
 ## On commercial profiles
 
